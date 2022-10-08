@@ -34,6 +34,46 @@ bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
+// loads a cubemap texture from 6 individual texture faces
+// order:
+// +X (right)
+// -X (left)
+// +Y (top)
+// -Y (bottom)
+// +Z (front) 
+// -Z (back)
+// -------------------------------------------------------
+unsigned int loadCubemap(vector<std::string> faces)
+{
+	unsigned int textureID;
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+	int width, height, nrComponents;
+	for (unsigned int i = 0; i < faces.size(); i++)
+	{
+		unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrComponents, 0);
+		if (data)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+			stbi_image_free(data);
+		}
+		else
+		{
+			std::cout << "Cubemap texture failed to load at path: " << faces[i] << std::endl;
+			stbi_image_free(data);
+		}
+	}
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	return textureID;
+}
+
+
 int main()
 {
     // glfw: initialize and configure
@@ -82,26 +122,91 @@ int main()
     Shader shader("1.1.pbr.vs", "1.1.pbr.fs");
 
     shader.use();
-    shader.setVec3("albedo", 0.5f, 0.0f, 0.0f);
+    shader.setVec3("albedo", 1.0f, 1.0f, 1.0f);
     shader.setFloat("ao", 1.0f);
 
     // lights
     // ------
     glm::vec3 lightPositions[] = {
         glm::vec3(-10.0f,  10.0f, 10.0f),
-        glm::vec3( 10.0f,  10.0f, 10.0f),
-        glm::vec3(-10.0f, -10.0f, 10.0f),
-        glm::vec3( 10.0f, -10.0f, 10.0f),
     };
     glm::vec3 lightColors[] = {
         glm::vec3(300.0f, 300.0f, 300.0f),
-        glm::vec3(300.0f, 300.0f, 300.0f),
-        glm::vec3(300.0f, 300.0f, 300.0f),
-        glm::vec3(300.0f, 300.0f, 300.0f)
     };
     int nrRows    = 7;
     int nrColumns = 7;
     float spacing = 2.5;
+
+	// -------------
+	vector<std::string> faces
+	{
+		FileSystem::getPath("resources/textures/skybox/right.jpg"),
+		FileSystem::getPath("resources/textures/skybox/left.jpg"),
+		FileSystem::getPath("resources/textures/skybox/top.jpg"),
+		FileSystem::getPath("resources/textures/skybox/bottom.jpg"),
+		FileSystem::getPath("resources/textures/skybox/front.jpg"),
+		FileSystem::getPath("resources/textures/skybox/back.jpg"),
+	};
+	unsigned int cubemapTexture = loadCubemap(faces);
+
+	Shader skyboxShader("6.2.skybox.vs", "6.2.skybox.fs");
+	skyboxShader.use();
+	skyboxShader.setInt("skybox", 0);
+
+
+	float skyboxVertices[] = {
+		// positions          
+		-1.0f,  1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		-1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f
+	};
+	// skybox VAO
+	unsigned int skyboxVAO, skyboxVBO;
+	glGenVertexArrays(1, &skyboxVAO);
+	glGenBuffers(1, &skyboxVBO);
+	glBindVertexArray(skyboxVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
     // initialize static shader uniforms before rendering
     // --------------------------------------------------
@@ -126,12 +231,13 @@ int main()
         // render
         // ------
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         shader.use();
         glm::mat4 view = camera.GetViewMatrix();
         shader.setMat4("view", view);
-        shader.setVec3("camPos", camera.Position);
+		shader.setVec3("camPos", camera.Position);
+		shader.setInt("envMap", 0);
 
         // render rows*column number of spheres with varying metallic/roughness values scaled by rows and columns respectively
         glm::mat4 model = glm::mat4(1.0f);
@@ -150,7 +256,11 @@ int main()
                     (row - (nrRows / 2)) * spacing, 
                     0.0f
                 ));
-                shader.setMat4("model", model);
+				shader.setMat4("model", model);
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+
                 renderSphere();
             }
         }
@@ -171,6 +281,20 @@ int main()
             shader.setMat4("model", model);
             renderSphere();
         }
+
+		// draw skybox as last
+		glDepthFunc(GL_LEQUAL);  // change depth function so depth test passes when values are equal to depth buffer's content
+		skyboxShader.use();
+		view = glm::mat4(glm::mat3(camera.GetViewMatrix())); // remove translation from the view matrix
+		skyboxShader.setMat4("view", view);
+		skyboxShader.setMat4("projection", projection);
+		// skybox cube
+		glBindVertexArray(skyboxVAO);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glBindVertexArray(0);
+		glDepthFunc(GL_LESS); // set depth function back to default
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
